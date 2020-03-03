@@ -11,13 +11,17 @@ entries = os.scandir(path)
 
 indexFile = open(path + "\\index.txt", mode="w", encoding="utf-8")
 
+def get_image_description(path, metadata):
+    if path.endswith('_b.jpg'):
+        return metadata.get('Exif.Image.ImageDescription', 'delete')
+    return metadata.get('Exif.Image.ImageDescription', '')
 
 for entry in entries:
     if entry.name.endswith('.jpg'):
         i = Image(entry.path)
         metadata = i.read_exif()
         photo_date = metadata.get('Exif.Photo.DateTimeOriginal')
-        description = metadata.get('Exif.Image.ImageDescription', 'delete')
+        description = get_image_description(entry.path, metadata)
 
         line = entry.name + '\n' + description + '\n' + photo_date
         print(line)
