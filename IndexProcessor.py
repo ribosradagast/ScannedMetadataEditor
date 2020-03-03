@@ -1,17 +1,7 @@
 import os
 import sys
 
-import piexif
-from PIL import Image
-
-
-def get_date_taken(path):
-    return Image.open(path)._getexif()[36867]
-
-
-def get_image_description(path):
-    return Image.open(path)._getexif().get(0x010e, 'delete_this_file')
-
+from pyexiv2 import Image
 
 print('Number of arguments:', len(sys.argv), 'arguments.')
 print('Argument List:', str(sys.argv))
@@ -22,6 +12,9 @@ entries = os.scandir(path)
 indexFile = open(path + "\\index.txt", mode="r", encoding="utf-8")
 os.mkdir(path + "\\to_delete\\")
 
+next_date_for_pictures = ''
+num_photos_with_date = 0
+
 while True:
     fileName = indexFile.readline().strip()
     description = indexFile.readline().strip()
@@ -29,10 +22,26 @@ while True:
     if not dateTaken: break  # EOF
 
     if description != 'delete':
-        image = Image.open(path + "\\" + fileName)
-        exif_dict = piexif.load(image.info["exif"])
-        exif_dict["Exif"][36867] = dateTaken
-        exif_dict["0th"][0x010e] = description
-        exif_bytes = piexif.dump(exif_dict)
-        image.save(path + "\\" + "tagged_" + fileName, "jpeg", exif=exif_bytes, quality="keep", optimize=True)
-    os.rename(path + "\\" + fileName, path + "\\to_delete\\" + fileName)
+        metadata = Image(path + "\\" + fileName)
+        xmp = {'Xmp.dc.description': description}
+        metadata.modify_xmp(xmp)
+
+        if dateTaken == next_date_for_pictures:
+            # add a second to make the next picture think that it comes next
+            split_date = dateTaken.split(":")
+            minutes = split_date[3]
+            split_date[3] = str(int(minutes) + num_photos_with_date).zfill(2)
+            num_photos_with_date += 1
+            dateTaken = ":".join(split_date)
+        else:
+            num_photos_with_date = 1
+            next_date_for_pictures = dateTaken
+
+        exif = {
+            'Exif.Image.ImageDescription': description,
+            'Exif.Photo.DateTimeOriginal': dateTaken
+        }
+        metadata.modify_exif(exif)
+        metadata.close()
+    else:
+        os.rename(path + "\\" + fileName, path + "\\to_delete\\" + fileName)
